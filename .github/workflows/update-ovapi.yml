@@ -1,0 +1,73 @@
+name: Actualizare OVapi Arriva
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'
+      timezone: Europe/Amsterdam
+    - cron: '0 7 * * *'
+      timezone: Europe/Amsterdam
+permissions:
+  contents: write
+concurrency:
+  group: arriva-gtfs-daily
+  cancel-in-progress: false
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download latest public OVapi GTFS
+        run: |
+          curl --fail --location --retry 3 --retry-delay 20 --connect-timeout 30 --max-time 1200 \
+            --output "$RUNNER_TEMP/gtfs-openov-nl.zip" \
+            'https://gtfs.ovapi.nl/openov-nl/gtfs-openov-nl.zip'
+          test "$(stat -c '%s' "$RUNNER_TEMP/gtfs-openov-nl.zip")" -gt 1000000
+      - name: Filter and validate lines including Maaslijn
+        run: python3 build_gtfs.py "$RUNNER_TEMP/gtfs-openov-nl.zip"
+      - name: Check for changes
+        id: compare
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          current = json.loads(Path('dist/manifest.json').read_text())
+          old = Path('data/manifest.json')
+          previous = json.loads(old.read_text()) if old.exists() else {}
+          changed = str(current['sha256'] != previous.get('sha256')).lower()
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as dest:
+              dest.write('changed=' + changed + '\n')
+          print('New dataset:', changed)
+          PY
+      - name: Publish immutable release, then update pointer
+        if: steps.compare.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(python3 -c "import json; print(json.load(open('dist/manifest.json'))['sha256'])")"
+          tag="gtfs-${sha:0:20}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" dist/DAxxv_Rail_GTFS_Limburg.zip \
+              --title "Arriva GTFS ${sha:0:12}" \
+              --notes 'Validated public timetable data for RS11 RS12 RS15 RS18 RE18; no ProRail data.'
+          fi
+          export RELEASE_TAG="$tag"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path('dist/manifest.json').read_text())
+          data['download_url'] = (
+              'https://github.com/' + os.environ['GITHUB_REPOSITORY'] +
+              '/releases/download/' + os.environ['RELEASE_TAG'] + '/' + data['filename']
+          )
+          Path('data').mkdir(exist_ok=True)
+          Path('data/manifest.json').write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/manifest.json
+          git commit -m "data: publish verified Arriva GTFS ${sha:0:12}"
+          git push origin HEAD:main
