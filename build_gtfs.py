@@ -58,10 +58,33 @@ def build(input_path):
         missing = required.difference(src.namelist())
         if missing:
             raise ValueError('Missing required GTFS files: ' + str(sorted(missing)))
-        matches = [r for r in rows(src, 'routes.txt') if r.get('agency_id') == 'IFF:ARRIVA'
+        routes = rows(src, 'routes.txt')
+        matches = [r for r in routes if r.get('agency_id') == 'IFF:ARRIVA'
                    and r.get('route_short_name') in LINES and r.get('route_type') == '2']
-        if {r['route_short_name'] for r in matches} != LINES:
-            raise ValueError('Missing at least one Arriva rail line')
+        found_lines = {r['route_short_name'] for r in matches}
+        missing_lines = LINES - found_lines
+        if missing_lines:
+            agencies = {r.get('agency_id', ''): r.get('agency_name', '')
+                        for r in rows(src, 'agency.txt')}
+            print('OVapi source route diagnostics:', file=sys.stderr)
+            for line in sorted(LINES):
+                candidates = [r for r in routes
+                              if r.get('route_short_name', '').strip().upper() == line]
+                if not candidates:
+                    print(f'  {line}: absent from routes.txt', file=sys.stderr)
+                else:
+                    for r in candidates[:8]:
+                        agency_id = r.get('agency_id', '')
+                        print(f"  {line}: agency_id={agency_id!r}, "
+                              f"agency_name={agencies.get(agency_id, '')!r}, "
+                              f"route_type={r.get('route_type', '')!r}, "
+                              f"route_id={r.get('route_id', '')!r}", file=sys.stderr)
+                    if len(candidates) > 8:
+                        print(f'    ... and {len(candidates) - 8} more', file=sys.stderr)
+            summary = ', '.join(sorted(missing_lines))
+            print(f'::error title=OVapi Arriva GTFS missing rail lines::'
+                  f'Missing: {summary}; keeping last verified publication', file=sys.stderr)
+            raise ValueError(f'Missing required Arriva rail lines: {summary}')
         route_map = {r['route_id']: r['route_short_name'] for r in matches}
         trips = set()
         services = set()
@@ -77,7 +100,8 @@ def build(input_path):
                         shapes.add(row['shape_id'])
                     counts[name] += 1
         if not all(counts.values()):
-            raise ValueError('No trips present for one or more required lines')
+            empty = [line for line, count in counts.items() if count == 0]
+            raise ValueError('No trips present for required line(s): ' + ', '.join(empty))
         parents = {r['stop_id']: r.get('parent_station', '') for r in rows(src, 'stops.txt')}
         stop_ids = set()
         filename = dist / OUTPUT
