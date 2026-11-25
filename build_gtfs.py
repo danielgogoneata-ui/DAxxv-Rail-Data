@@ -59,7 +59,13 @@ def build(input_path):
         if missing:
             raise ValueError('Missing required GTFS files: ' + str(sorted(missing)))
         routes = rows(src, 'routes.txt')
-        matches = [r for r in routes if r.get('agency_id') == 'IFF:ARRIVA'
+        agency_rows = rows(src, 'agency.txt')
+        # OVapi changed the Arriva agency_id from IFF:ARRIVA to ARR in Nov 2026.
+        # Resolve by the exact operator name, not a brittle agency_id.
+        arriva_agency_ids = {r['agency_id'] for r in agency_rows
+                             if r.get('agency_name', '').strip().casefold() == 'arriva'
+                             and r.get('agency_id')}
+        matches = [r for r in routes if r.get('agency_id') in arriva_agency_ids
                    and r.get('route_short_name') in LINES and r.get('route_type') == '2']
         found_lines = {r['route_short_name'] for r in matches}
         missing_lines = LINES - found_lines
@@ -121,7 +127,9 @@ def build(input_path):
             store(dst, 'calendar_dates.txt', selected_bytes(src, 'calendar_dates.txt', services, 'service_id'))
             if 'calendar.txt' in src.namelist():
                 store(dst, 'calendar.txt', selected_bytes(src, 'calendar.txt', services, 'service_id'))
-            store(dst, 'agency.txt', selected_bytes(src, 'agency.txt', {'IFF:ARRIVA'}, 'agency_id'))
+            # Include only the actual agencies referenced by the selected routes.
+            selected_agency_ids = {r['agency_id'] for r in matches}
+            store(dst, 'agency.txt', selected_bytes(src, 'agency.txt', selected_agency_ids, 'agency_id'))
             store(dst, 'routes.txt', selected_bytes(src, 'routes.txt', route_map, 'route_id'))
             for name in ('feed_info.txt', 'licenses.txt', 'ticketing_identifiers.txt', 'ticketing_deep_links.txt'):
                 if name in src.namelist():
