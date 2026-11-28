@@ -1,8 +1,8 @@
 {
-  "download_url": "https://github.com/danielgogoneata-ui/DAxxv-Rail-Data/releases/download/gtfs-4b7941dfa1f3db8e8b32/DAxxv_Rail_GTFS_Limburg.zip",
+  "download_url": "https://github.com/danielgogoneata-ui/DAxxv-Rail-Data/releases/download/gtfs-572a9c821e8c2c4dfb37/DAxxv_Rail_GTFS_Limburg.zip",
   "feed_end_date": "20271211",
-  "feed_start_date": "20261126",
-  "feed_version": "gtransit_chb:1.0.3:9725",
+  "feed_start_date": "20261127",
+  "feed_version": "gtransit_chb:1.0.3:9729",
   "filename": "DAxxv_Rail_GTFS_Limburg.zip",
   "lines": [
     "RE18",
@@ -12,16 +12,16 @@
     "RS18"
   ],
   "schema_version": 1,
-  "sha256": "4b7941dfa1f3db8e8b32d4d8540c24635664afe64948bbb4688ea15eda31569c",
-  "size_bytes": 312469,
+  "sha256": "572a9c821e8c2c4dfb37982eda410514cd9cd1eec056903d1a7cf346abef1828",
+  "size_bytes": 312274,
   "source": "https://gtfs.ovapi.nl/openov-nl/gtfs-openov-nl.zip",
-  "total_trips": 1991,
+  "total_trips": 1990,
   "trips_by_line": {
     "RE18": 297,
     "RS11": 506,
     "RS12": 390,
     "RS15": 158,
-    "RS18": 640
+    "RS18": 639
   },
   "type": "arriva_gtfs_schedule"
 }
